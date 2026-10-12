@@ -69,6 +69,20 @@ monitorv2 = HDMI-A-1, 1920x1080@60, 1920x0, 1, {
 
 Values are integers representing pixels inset from each edge (range: `0` to `9999`). Changes reload dynamically when monitor rules re-evaluate.
 
+See [examples/monitors.lua](examples/monitors.lua) and [examples/hyprland.conf](examples/hyprland.conf) for ready-to-use configuration files.
+
+### Real-world verified hardware: AKAI LED22D20 Dx
+
+This patch was tested on physical hardware with an **AKAI LED22D20 Dx** (56cm / 22" Full HD LED TV, reported by EDID as `GDH CHHWJT 0x01000000`) connected over HDMI (`HDMI-A-1`).
+
+Because the TV firmware does not offer a "Just Scan" / 1:1 pixel mapping mode, the TV crops roughly 2.6% horizontally and 2.8% vertically. The calibrated insets for this display are:
+- `overscan_l = 50`
+- `overscan_r = 50`
+- `overscan_t = 30`
+- `overscan_b = 30`
+
+Check [examples/monitors.lua](examples/monitors.lua) for the dual-monitor config (laptop internal display + AKAI TV) and a listing of all supported TV modes.
+
 ---
 
 ## The upstream bug and how this patch fixes it
