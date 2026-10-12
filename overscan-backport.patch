@@ -1,0 +1,189 @@
+diff --git i/src/config/legacy/ConfigManager.cpp w/src/config/legacy/ConfigManager.cpp
+index 4f1b11f2..8a721505 100644
+--- i/src/config/legacy/ConfigManager.cpp
++++ w/src/config/legacy/ConfigManager.cpp
+@@ -585,6 +585,10 @@ CConfigManager::CConfigManager() {
+     m_config->addSpecialConfigValue("monitorv2", "min_luminance", Hyprlang::FLOAT{-1.0});
+     m_config->addSpecialConfigValue("monitorv2", "max_luminance", Hyprlang::INT{-1});
+     m_config->addSpecialConfigValue("monitorv2", "max_avg_luminance", Hyprlang::INT{-1});
++    m_config->addSpecialConfigValue("monitorv2", "overscan_t", Hyprlang::INT{0});
++    m_config->addSpecialConfigValue("monitorv2", "overscan_b", Hyprlang::INT{0});
++    m_config->addSpecialConfigValue("monitorv2", "overscan_l", Hyprlang::INT{0});
++    m_config->addSpecialConfigValue("monitorv2", "overscan_r", Hyprlang::INT{0});
+     m_config->addSpecialConfigValue("monitorv2", "icc", Hyprlang::STRING{""});
+ 
+     // windowrule v3
+@@ -867,6 +871,19 @@ std::optional<std::string> CConfigManager::handleMonitorv2(const std::string& ou
+     if (VAL && VAL->m_bSetByUser)
+         parser.rule().m_maxAvgLuminance = std::any_cast<Hyprlang::INT>(VAL->getValue());
+ 
++    VAL = m_config->getSpecialConfigValuePtr("monitorv2", "overscan_t", output.c_str());
++    if (VAL && VAL->m_bSetByUser)
++        parser.rule().m_overscanTL.y = std::any_cast<Hyprlang::INT>(VAL->getValue());
++    VAL = m_config->getSpecialConfigValuePtr("monitorv2", "overscan_b", output.c_str());
++    if (VAL && VAL->m_bSetByUser)
++        parser.rule().m_overscanBR.y = std::any_cast<Hyprlang::INT>(VAL->getValue());
++    VAL = m_config->getSpecialConfigValuePtr("monitorv2", "overscan_l", output.c_str());
++    if (VAL && VAL->m_bSetByUser)
++        parser.rule().m_overscanTL.x = std::any_cast<Hyprlang::INT>(VAL->getValue());
++    VAL = m_config->getSpecialConfigValuePtr("monitorv2", "overscan_r", output.c_str());
++    if (VAL && VAL->m_bSetByUser)
++        parser.rule().m_overscanBR.x = std::any_cast<Hyprlang::INT>(VAL->getValue());
++
+     VAL = m_config->getSpecialConfigValuePtr("monitorv2", "icc", output.c_str());
+     if (VAL && VAL->m_bSetByUser)
+         parser.rule().m_iccFile = std::any_cast<Hyprlang::STRING>(VAL->getValue());
+diff --git i/src/config/lua/bindings/LuaBindingsConfigRules.cpp w/src/config/lua/bindings/LuaBindingsConfigRules.cpp
+index 8095b170..af5368fb 100644
+--- i/src/config/lua/bindings/LuaBindingsConfigRules.cpp
++++ w/src/config/lua/bindings/LuaBindingsConfigRules.cpp
+@@ -175,6 +175,26 @@ namespace {
+              p.rule().m_maxAvgLuminance = sc<int>(*sc<const Config::INTEGER*>(v->data()));
+              return true;
+          }},
++        {"overscan_t", []() -> ILuaConfigValue* { return new CLuaConfigInt(0, 0, 9999); },
++         [](ILuaConfigValue* v, CMonitorRuleParser& p) {
++             p.rule().m_overscanTL.y = sc<int>(*sc<const Config::INTEGER*>(v->data()));
++             return true;
++         }},
++        {"overscan_b", []() -> ILuaConfigValue* { return new CLuaConfigInt(0, 0, 9999); },
++         [](ILuaConfigValue* v, CMonitorRuleParser& p) {
++             p.rule().m_overscanBR.y = sc<int>(*sc<const Config::INTEGER*>(v->data()));
++             return true;
++         }},
++        {"overscan_l", []() -> ILuaConfigValue* { return new CLuaConfigInt(0, 0, 9999); },
++         [](ILuaConfigValue* v, CMonitorRuleParser& p) {
++             p.rule().m_overscanTL.x = sc<int>(*sc<const Config::INTEGER*>(v->data()));
++             return true;
++         }},
++        {"overscan_r", []() -> ILuaConfigValue* { return new CLuaConfigInt(0, 0, 9999); },
++         [](ILuaConfigValue* v, CMonitorRuleParser& p) {
++             p.rule().m_overscanBR.x = sc<int>(*sc<const Config::INTEGER*>(v->data()));
++             return true;
++         }},
+     };
+ 
+     static_assert(sizeof(Internal::WINDOW_RULE_EFFECT_DESCS) / sizeof(Internal::SWindowRuleEffectDesc) == Internal::WE::WINDOW_RULE_EFFECT_LAST_STATIC - 1);
+diff --git i/src/config/shared/monitor/MonitorRule.cpp w/src/config/shared/monitor/MonitorRule.cpp
+index cbc7da61..bfdefd4e 100644
+--- i/src/config/shared/monitor/MonitorRule.cpp
++++ w/src/config/shared/monitor/MonitorRule.cpp
+@@ -26,8 +26,9 @@ eMonitorRuleComparisonResult CMonitorRule::compare(const CMonitorRule& other) co
+     const auto SAME_AUTO_DIR  = m_autoDir == other.m_autoDir;
+     const auto SAME_RESERVED  = m_reservedArea == other.m_reservedArea;
+     const auto SAME_MIRROR    = m_mirrorOf == other.m_mirrorOf;
++    const auto SAME_OVERSCAN  = m_overscanTL == other.m_overscanTL && m_overscanBR == other.m_overscanBR;
+ 
+-    if (!SAME_CM || !SAME_POS || !SAME_TRANSFORM || !SAME_AUTO_DIR || !SAME_RESERVED || !SAME_MIRROR)
++    if (!SAME_CM || !SAME_POS || !SAME_TRANSFORM || !SAME_AUTO_DIR || !SAME_RESERVED || !SAME_MIRROR || !SAME_OVERSCAN)
+         return COMPARISON_SOFT_MISMATCH;
+ 
+     return COMPARISON_FULL_MATCH;
+diff --git i/src/config/shared/monitor/MonitorRule.hpp w/src/config/shared/monitor/MonitorRule.hpp
+index b5ebb482..58a4a3a6 100644
+--- i/src/config/shared/monitor/MonitorRule.hpp
++++ w/src/config/shared/monitor/MonitorRule.hpp
+@@ -67,5 +67,12 @@ namespace Config {
+ 
+         drmModeModeInfo    m_drmMode = {};
+         std::optional<int> m_vrr;
++
++        Vector2D m_overscanTL = {0, 0};
++        Vector2D m_overscanBR = {0, 0};
++
++        bool hasOverscan() const {
++            return m_overscanTL != Vector2D{0, 0} || m_overscanBR != Vector2D{0, 0};
++        }
+     };
+ };
+diff --git i/src/output/Monitor.cpp w/src/output/Monitor.cpp
+index e69d8dda..c7b1bc11 100644
+--- i/src/output/Monitor.cpp
++++ w/src/output/Monitor.cpp
+@@ -2297,6 +2297,9 @@ bool CMonitor::shouldUseSoftwareCursors() {
+     if (*PINVISIBLE != 0)
+         return true;
+ 
++    if (m_activeMonitorRule.hasOverscan())
++        return true;
++
+     switch (*PNOHW) {
+         case 0: return false;
+         case 1: return true;
+diff --git i/src/render/OpenGL.cpp w/src/render/OpenGL.cpp
+index baee1ad2..7e97dd91 100644
+--- i/src/render/OpenGL.cpp
++++ w/src/render/OpenGL.cpp
+@@ -811,22 +811,45 @@ void CHyprOpenGLImpl::end() {
+ 
+         const bool NEEDS_CM          = g_pHyprRenderer->m_renderData.pMonitor->m_imageDescription->value() != g_pHyprRenderer->m_renderData.mainFB->imageDescription()->value();
+         const bool HAS_FINAL_SHADER  = m_finalScreenShader->program() >= 1 || g_pHyprRenderer->m_crashingInProgress;
+-        const bool PRIMITIVE_BLOCKED = NEEDS_CM || HAS_FINAL_SHADER;
++        const auto ACTIVE_RULE       = g_pHyprRenderer->m_renderData.pMonitor->m_activeMonitorRule;
++        const bool HAS_OVERSCAN      = ACTIVE_RULE.hasOverscan();
++        const bool PRIMITIVE_BLOCKED = NEEDS_CM || HAS_FINAL_SHADER || HAS_OVERSCAN;
+ 
+         if LIKELY (!PRIMITIVE_BLOCKED || g_pHyprRenderer->m_renderMode != RENDER_MODE_NORMAL)
+             renderTexturePrimitive(TEX, monbox);
+-        else if (NEEDS_CM && HAS_FINAL_SHADER) {
+-            const auto tempFB   = g_pHyprRenderer->m_renderData.pMonitor->resources()->getUnusedWorkBuffer();
+-            const auto saveDesc = tempFB->imageDescription();
+-            tempFB->setImageDescription(g_pHyprRenderer->m_renderData.pMonitor->m_imageDescription);
+-            auto guard = g_pHyprRenderer->bindTempFB(tempFB);
+-            GLFB(tempFB)->clearAfterInvalidation();
+-            renderTexture(TEX, monbox, {.finalMonitorCM = true});
+-            guard.reset();
+-            renderTexture(tempFB->getTexture(), monbox, {.finalMonitorCM = true});
+-            tempFB->setImageDescription(saveDesc);
+-        } else
+-            renderTexture(TEX, monbox, {.finalMonitorCM = true});
++        else {
++            if (HAS_OVERSCAN) {
++                // squish the image into the middle of the panel and black out the borders
++                const auto OLD_MONBOX = monbox;
++                monbox.translate(ACTIVE_RULE.m_overscanTL);
++                monbox.w -= ACTIVE_RULE.m_overscanTL.x + ACTIVE_RULE.m_overscanBR.x;
++                monbox.h -= ACTIVE_RULE.m_overscanTL.y + ACTIVE_RULE.m_overscanBR.y;
++
++                // black out the border region only
++                const auto SAVED_DAMAGE = m_renderData.damage;
++                m_renderData.damage     = CRegion{OLD_MONBOX}.subtract(CRegion{monbox});
++                renderRect(OLD_MONBOX, Colors::BLACK, {});
++                m_renderData.damage = SAVED_DAMAGE;
++
++                // partial damage cannot be mapped 1:1 onto a squished image,
++                // so present the whole panel every frame to avoid artifacts
++                m_renderData.damage      = CRegion{OLD_MONBOX};
++                m_renderData.finalDamage = CRegion{OLD_MONBOX};
++            }
++
++            if (NEEDS_CM && HAS_FINAL_SHADER) {
++                const auto tempFB   = g_pHyprRenderer->m_renderData.pMonitor->resources()->getUnusedWorkBuffer();
++                const auto saveDesc = tempFB->imageDescription();
++                tempFB->setImageDescription(g_pHyprRenderer->m_renderData.pMonitor->m_imageDescription);
++                auto guard = g_pHyprRenderer->bindTempFB(tempFB);
++                GLFB(tempFB)->clearAfterInvalidation();
++                renderTexture(TEX, monbox, {.finalMonitorCM = true});
++                guard.reset();
++                renderTexture(tempFB->getTexture(), monbox, {.finalMonitorCM = true});
++                tempFB->setImageDescription(saveDesc);
++            } else
++                renderTexture(TEX, monbox, {.finalMonitorCM = true});
++        }
+ 
+         blend(true);
+ 
+diff --git i/src/render/Renderer.cpp w/src/render/Renderer.cpp
+index 249f0843..e554c6fd 100644
+--- i/src/render/Renderer.cpp
++++ w/src/render/Renderer.cpp
+@@ -2143,7 +2143,8 @@ void IHyprRenderer::renderMonitor(PHLMONITOR pMonitor, bool commit) {
+     }
+ 
+     // if we have no tracking or full tracking, invalidate the entire monitor
+-    if (*PDAMAGETRACKINGMODE == DAMAGE_TRACKING_NONE || *PDAMAGETRACKINGMODE == DAMAGE_TRACKING_MONITOR || pMonitor->m_forceFullFrames > 0 || damageBlinkCleanup > 0)
++    if (*PDAMAGETRACKINGMODE == DAMAGE_TRACKING_NONE || *PDAMAGETRACKINGMODE == DAMAGE_TRACKING_MONITOR || pMonitor->m_forceFullFrames > 0 || damageBlinkCleanup > 0 ||
++        pMonitor->m_activeMonitorRule.hasOverscan())
+         damage = {0, 0, sc<int>(pMonitor->m_transformedSize.x) * 10, sc<int>(pMonitor->m_transformedSize.y) * 10};
+ 
+     finalDamage = damage;

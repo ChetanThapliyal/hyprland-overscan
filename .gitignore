@@ -1,0 +1,20 @@
+# Build artifacts and temporary files
+build/
+*.o
+*.a
+*.so
+*.orig
+*.rej
+*~
+*.swp
+*.swo
+
+# Project agent configurations
+.agents/
+
+# Local working notes
+PR.md
+
+# System files
+.DS_Store
+Thumbs.db
