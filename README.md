@@ -4,6 +4,9 @@ Per-monitor overscan compensation for Hyprland on displays (especially TVs) that
 
 This repository provides a patch and build instructions for Hyprland **v0.56.2** (commit `efb50993`). It builds upon the upstream overscan implementation started by [@vaxerski](https://github.com/vaxerski) in [hyprwm/Hyprland#11464](https://github.com/hyprwm/Hyprland/pull/11464) and resolves the damage tracking issues that prevented the original PR from merging.
 
+> [!NOTE]
+> **AI Usage Disclosure**: AI was used heavily to investigate and solve this problem (specifically the Opencode Big Pickle model). All rendering pipeline fixes, damage tracking math, and configuration bindings were developed with heavy AI assistance, then reviewed, compiled, and verified on physical hardware.
+
 ---
 
 ## The problem
@@ -195,7 +198,7 @@ Then restart your Hyprland session.
 
 In compliance with the [Hyprland AI Usage Policy](https://github.com/hyprwm/.github/blob/main/policies/AI_USAGE.md):
 
-- **Tools used**: Google DeepMind Antigravity AI coding assistant.
+- **Tools and models used**: Opencode (Big Pickle model), with Google DeepMind Antigravity AI coding assistant.
 - **Scope of AI involvement**:
   - Investigated the root cause of the damage-tracking artifacts present in upstream PR #11464.
   - Implemented the backport modifications in `src/render/OpenGL.cpp` and `src/render/Renderer.cpp`.
